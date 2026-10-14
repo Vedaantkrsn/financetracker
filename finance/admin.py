@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Account, Category
+from .models import Account, Category, Transaction, Budget
 
 # Register your models here.
 @admin.register(Account)
@@ -13,3 +13,14 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'user', 'category_type', 'parent')
     list_filter = ('category_type',)
     search_fields = ('name',)
+
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    list_display = ('date', 'user', 'account', 'transaction_type', 'category', 'amount')
+    list_filter = ('transaction_type', 'account')
+    search_fields = ('description', 'notes')
+
+@admin.register(Budget)
+class BudgetAdmin(admin.ModelAdmin):
+    list_display = ('category', 'user', 'period_type', 'amount', 'start_date', 'end_date', 'rollover_enabled')
+    list_filter = ('period_type', 'rollover_enabled')

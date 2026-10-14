@@ -1,0 +1,13 @@
+$kind: http-request
+name: Get Account
+description: ""
+url: http://127.0.0.1:8000/api/accounts/
+method: GET
+headers:
+  Authorization: Bearer {{supabase_service_role_api_key_13n0}}
+queryParams:
+  - key: ""
+    value: ""
+    disabled: true
+    description: ""
+order: 364192124947748

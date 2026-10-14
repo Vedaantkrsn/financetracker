@@ -1,0 +1,9 @@
+$kind: collection
+name: financetracker
+variables:
+  - key: supabase_service_role_api_key_13n0
+    secret: true
+    disabled: false
+  - key: bearer_token_04n0
+    secret: true
+    disabled: false
