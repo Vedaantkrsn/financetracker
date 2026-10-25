@@ -3,6 +3,7 @@ from .models import Account, Category, Transaction, Budget
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.db.models import Sum
+import calendar
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -195,5 +196,48 @@ class BudgetSerializer(serializers.ModelSerializer):
             }
 
         return self._stats_cache[obj.pk]
+
+    def validate(self,data):
+        inst=self.instance
+        start= data.get('start_date', inst.start_date if inst else None)
+        end= data.get('end_date', inst.end_date if inst else None)
+        category= data.get('category', inst.category if inst else None)
+        period_type=data.get('period_type', inst.period_type if inst else None)
+
+        if start and end and end < start:
+            raise serializers.ValidationError("End date must be on or after start date.")
+
+        if period_type == 'monthly' and start is not None and end is not None:
+            print("MONTHLY CHECK RUNNING:", start, end)
+            if start.year != end.year or start.month != end.month:
+                raise serializers.ValidationError(
+                    "A monthly budget must stay within one calendar month."
+                )
+
+            if start.day != 1:
+                raise serializers.ValidationError(
+                    "A monthly budget must start on the first day of the month."
+                )
+
+            last_day = calendar.monthrange(start.year, start.month)[1]
+
+            if end.day != last_day:
+                raise serializers.ValidationError(
+                    "A monthly budget must end on the last day of the month."
+                )
+
+        if start and end and category and period_type:
+            overlapping=Budget.objects.filter(
+                user=self.context['request'].user,
+                category=category,
+                period_type=period_type,
+                start_date__lte=end,
+                end_date__gte=start,
+            )
+            if inst:
+                overlapping=overlapping.exclude(pk=inst.pk)
+            if overlapping.exists():
+                raise serializers.ValidationError("A budget for this category and period type already covers these dates.")
+        return data
 
     
