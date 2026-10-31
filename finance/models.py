@@ -1,5 +1,7 @@
 from django.db import models, transaction as db_transaction
 from django.contrib.auth.models import User
+import calendar
+from datetime import timedelta
 
 
 class Account(models.Model):
@@ -68,6 +70,8 @@ class Transaction(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    recurring_source = models.ForeignKey('RecurringTransaction', on_delete=models.SET_NULL,
+                                         null=True, blank=True, related_name='transactions')
 
     class Meta:
         ordering = ['-date', '-created_at']
@@ -155,3 +159,50 @@ class Budget(models.Model):
 
     def __str__(self):
         return f"{self.category.name} — {self.period_type} — {self.start_date}"
+
+class RecurringTransaction(models.Model):
+    FREQUENCIES = [('weekly', 'Weekly'), ('monthly', 'Monthly'), ('yearly', 'Yearly')]
+    TYPES = [('income', 'Income'), ('expense', 'Expense')]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recurring_transactions')
+    name = models.CharField(max_length=100)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='recurring_transactions')
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='recurring_transactions')
+    transaction_type = models.CharField(max_length=10, choices=TYPES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    frequency = models.CharField(max_length=10, choices=FREQUENCIES)
+    start_date = models.DateField()
+    next_due_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def _advance(self,from_date):
+        if self.frequency=='weekly':
+            return from_date + timedelta(weeks=1)
+        months=1 if self.frequency=='monthly' else 12
+        total= from_date.year*12 + (from_date.month-1) + months
+        year,month_index=divmod(total,12)
+        month=month_index+1
+        day=min(self.start_date.day,calendar.monthrange(year,month)[1])
+        return from_date.replace(year=year, month=month, day=day)
+
+    def _move_forward(self):
+        self.next_due_date=self._advance(self.next_due_date)
+        if self.end_date and self.next_due_date > self.end_date:
+            self.is_active=False
+        self.save(update_fields=['next_due_date','is_active'])
+
+    def post_transaction(self, amount=None):
+        with db_transaction.atomic():
+            Transaction.objects.create(
+                user=self.user, account=self.account, category=self.category,
+                transaction_type=self.transaction_type,
+                amount=amount if amount is not None else self.amount,
+                date=self.next_due_date, description=self.name,
+                recurring_source=self,
+            )
+            self._move_forward()
+
+    def skip_period(self):
+        self._move_forward()
+

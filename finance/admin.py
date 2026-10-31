@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Account, Category, Transaction, Budget
+from .models import Account, Category, Transaction, Budget, RecurringTransaction
 
 # Register your models here.
 @admin.register(Account)
@@ -24,3 +24,9 @@ class TransactionAdmin(admin.ModelAdmin):
 class BudgetAdmin(admin.ModelAdmin):
     list_display = ('category', 'user', 'period_type', 'amount', 'start_date', 'end_date', 'rollover_enabled')
     list_filter = ('period_type', 'rollover_enabled')
+
+@admin.register(RecurringTransaction)
+class RecurringTransactionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'user', 'account', 'transaction_type', 'amount', 'frequency', 'next_due_date', 'is_active')
+    list_filter = ('transaction_type', 'frequency', 'is_active')
+    search_fields = ('name',)

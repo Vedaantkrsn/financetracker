@@ -1,9 +1,10 @@
 from rest_framework import serializers
-from .models import Account, Category, Transaction, Budget
+from .models import Account, Category, Transaction, Budget, RecurringTransaction
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.db.models import Sum
 import calendar
+from datetime import date
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -54,9 +55,9 @@ class TransactionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'account', 'category', 'transaction_type', 'transfer_direction', 'amount',
             'date', 'description', 'notes', 'linked_transaction',
-            'to_account', 'created_at', 'updated_at'
+            'to_account', 'created_at', 'updated_at', 'recurring_source',
         ]
-        read_only_fields = ['linked_transaction', 'transfer_direction', 'created_at', 'updated_at']
+        read_only_fields = ['linked_transaction', 'transfer_direction', 'created_at', 'updated_at', 'recurring_source']
 
     def validate(self, data):
         if data.get('transaction_type') == 'transfer' and not data.get('to_account'):
@@ -239,5 +240,58 @@ class BudgetSerializer(serializers.ModelSerializer):
             if overlapping.exists():
                 raise serializers.ValidationError("A budget for this category and period type already covers these dates.")
         return data
+
+class RecurringSerializer(serializers.ModelSerializer):
+    monthly_cost=serializers.SerializerMethodField()
+    yearly_cost=serializers.SerializerMethodField()
+    lifetime_total=serializers.SerializerMethodField()
+    is_overdue=serializers.SerializerMethodField()
+
+    class Meta:
+        model=RecurringTransaction
+        fields = [
+            'id', 'name', 'account', 'category', 'transaction_type', 'amount',
+            'frequency', 'start_date', 'next_due_date', 'end_date', 'is_active',
+            'monthly_cost', 'yearly_cost', 'lifetime_total', 'is_overdue',
+        ]
+        read_only_fields= ['next_due_date']
+
+    def _yearly(self, obj):
+        return obj.amount * {'weekly': 52, 'monthly': 12, 'yearly': 1}[obj.frequency]
+
+    def get_yearly_cost(self, obj):
+        return self._yearly(obj)
+
+    def get_monthly_cost(self,obj):
+        return round(self._yearly(obj)/12,2)
+
+    def get_lifetime_total(self,obj):
+        return obj.transactions.aggregate(total=Sum('amount'))['total'] or 0
+
+    def get_is_overdue(self,obj):
+        return obj.is_active and obj.next_due_date < date.today()
+
+    def validate_account(self,value):
+        if value.user != self.context['request'].user:
+            raise serializers.ValidationError("Invalid account")
+        return value
+
+    def validate_category(self,value):
+        if value is not None and value.user != self.context['request'].user:
+            raise serializers.ValidationError("Invalid category")
+        return value
+
+    def validate(self,data):
+        inst=self.instance
+        start= data.get('start_date', inst.start_date if inst else None)
+        end= data.get('end_date', inst.end_date if inst else None)
+        if start and end and end < start:
+            raise serializers.ValidationError("End date must be on or after start date.")
+        return data
+
+    def update(self, instance, validated_data):
+        validated_data.pop('start_date', None)
+        return super().update(instance, validated_data)
+
 
     
