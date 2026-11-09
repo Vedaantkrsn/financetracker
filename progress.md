@@ -1,51 +1,57 @@
-# Finance Tracker — project notes
+# Finance Tracker — project progress
 
-Personal finance tracker for daily use (Django REST Framework + React/Vite), inspired by Fold, Monarch and YNAB. Built incrementally: plan small → design → build → test → refine → plan next. Prefers learning by building, with reasoning explained before the code.
+Personal finance tracker built with Django REST Framework and React/Vite. The user prefers to learn by implementing changes themselves, so explain code and share it in chat unless they ask for direct edits.
 
-## Setup (handoff notes)
-- Backend: Django + DRF in `financetracker/` (project package `config`, app `finance`), Windows / PowerShell, virtualenv in `venv/`
-- Frontend: Vite + React (JavaScript) in a sibling folder `financetracker-frontend/`, axios instance with a request interceptor that attaches the JWT
-- Auth: simplejwt access + refresh tokens, stored in localStorage; automatic token refresh is not built yet
-- Models: Account (stored `current_balance`, updated by Transaction save/delete), Category, Transaction, Budget
-- Key decisions: INR only; a transfer is two linked Transaction rows (both `type='transfer'`, `transfer_direction` out/in); balance logic lives in the model; budget stats are computed live in the serializer; ownership of related objects is validated in the serializers
+## Project layout
+- Backend: `financetracker/` (Django project package `config`, app `finance`, virtualenv `venv/`).
+- Frontend: sibling `financetracker-frontend/` (React, Vite, JavaScript).
+- API client: frontend `src/api/axios.js`; attaches the JWT access token from localStorage.
+- Currency: INR (₹).
+- Transfers are represented by two linked transaction rows with `transfer_direction` set to `out`/`in`; transaction model logic adjusts account balances.
+- Per-user data is scoped in API querysets and related-object ownership is validated by serializers.
 
-## Full feature spec (from the Excalidraw flowchart)
-1. Auth: Intro/onboarding, Signup (username/email/password), Login, first-login welcome, possible Google login
-2. Global UI: Sidebar (Dashboard, Transactions, Accounts, Reports, Budget, Categories, Recurring, Profile, Logout), light/dark mode, global "Add Transaction" button
-3. Dashboard: total balance, total income, total expenses, net cash flow (income − expenses), recent 5-10 transactions, upcoming recurring payments, GitHub-style activity calendar (days with activity), transaction/activity counter
-4. Transactions: full history, add income/expense/transfer, search/filter/sort, CSV export, possible CSV import
-5. Accounts: bank/cash/wallet/credit card/investment, add/edit/deactivate (not delete), balance + per-account transaction history
-6. Reports: income/expenses/net cash flow/total balance, spending & income by category/account/time period, income-vs-expense charts, trend charts, cash-flow analysis, savings/money retained, filters+sorting — analysis-focused, not duplicating the dashboard
-7. Budget: total budget/spent/remaining/% used, category-based weekly/monthly budgets, create/edit, budget history, threshold/over-budget alerts, optional rollover of unused budget
-8. Categories: categories + subcategories, add/edit, icons/colors, show spending/usage, unused categories can be deleted, used categories become inactive instead of being deleted
-9. Recurring: recurring expenses + income, amount/category/account/frequency/next date, monthly/yearly/lifetime cost, upcoming payments, add/edit/pause/delete, future automatic transaction generation
-10. Profile: account settings, theme + notification preferences, password/logout
+## Current implementation
 
-## Build status
+### Backend
+- Django REST Framework API with JWT authentication, registration endpoint (`POST /api/register/`), token obtain and refresh endpoints.
+- Finance models/API for accounts, categories, transactions, budgets, and recurring transactions.
+- User ownership on finance records; API viewsets filter querysets by `request.user` and assign owner on create.
+- Related-object ownership validation for transaction account/category/transfer destination, budget category, recurring account/category, and category parent.
+- Transactions support income, expense, and transfers; account balances update on create/update/delete. Filtering supports account, category, transaction type, date range, and min/max amount.
+- Budgets support weekly/monthly periods, date/overlap validation, live spend/remaining/percent/effective amount calculations, and rollover.
+- Recurring transactions support weekly/monthly/yearly frequency, due date advancement, manual post, skip, pause/resume, and computed monthly/yearly/lifetime totals.
+- Reports endpoint aggregates summary metrics, trends, categories, and accounts for the authenticated user's transactions.
 
-### Done (backend + frontend working and tested)
-- Django + DRF backend, JWT auth (register/login/logout), per-user data isolation; ownership validation on Transaction (account, category, to_account), Budget (category) and Category (parent) serializers
-- Accounts: model, CRUD API, UI (add, list, deactivate/reactivate with a collapsible "Deactivated" section)
-- Categories: model, CRUD API, UI (add, list); backend blocks delete when transactions reference the category; UI shows Delete only when unused, Deactivate/Reactivate always
-- Transactions: income/expense/transfer with balance sync on create/update/delete; two bugs diagnosed and fixed (cascade-delete bypass, stale-object double-save)
-- Transactions UI: add, list, edit (income/expense only — transfers are edit-locked because editing would desync the linked pair), delete, filtering via django-filter (account/category/type/date range)
-- React Router + sidebar shell (Dashboard/Transactions/Accounts/Categories/Budget); App.jsx owns shared state, split into `transactions` (full set, used by Dashboard) and `filteredTransactions` (Transactions page only)
-- Dashboard: total balance, this-month income/expenses/net cash flow, recent 10 transactions
-- Budget: one row = one category + one period instance (start_date/end_date, weekly or monthly); spent/remaining/percent_used/effective_amount computed live (cached once per budget per request); rollover compounds across periods; date validation (end after start, no overlaps for the same category + period type)
-- Budget UI: add/edit form (category and period type locked while editing), list grouped monthly/weekly with progress bars and 80%/100% colour thresholds, weekly date-range label, rollover text, delete
+### Frontend
+- Login screen with JWT token storage and dark organic/orbital styling. Registration UI is not yet connected to the existing backend endpoint.
+- Sidebar navigation and responsive app shell for Dashboard, Transactions, Accounts, Categories, Budgets, Recurring, and Reports; logout clears stored tokens.
+- Dashboard: total active balance, current-month income/expenses/net, latest 10 transactions, and in-app list of recurring items due within 30 days (including overdue items).
+- Transactions: add/edit/delete income and expense rows, transfer creation (transfer rows are not editable), account/category/type/date filters, dark responsive list and form styling.
+- Accounts: add/list/deactivate/reactivate, active balance summary, account type/institution/balance cards, paused-account section.
+- Categories: add/list, income/expense counts, deactivate/reactivate, delete when unused, archived category section.
+- Budgets: add/edit/delete, monthly/weekly grouping, period selector, usage progress, near-limit/over-budget status, rollover display.
+- Recurring: add/edit/delete, post/skip, pause/resume, due-state labels, monthly inflow/outflow summary, paused section.
+- Reports: date/account/category filters, summary metrics, income-vs-expense and net cash-flow charts, category and account tables.
+- Dark organic visual system (rounded panels, orbital/circular accents, responsive layouts) applied to the main pages and login.
 
-### Not started
-- Budget history view: month dropdown (pick October → all October monthly and weekly budgets), possibly alongside current/past; undecided which month a weekly budget crossing a month boundary belongs to
-- Dashboard activity calendar (GitHub-style) + transaction counter
-- Recent Transactions still shows both legs of a transfer separately (future polish: show only the 'out' leg)
-- Accounts as its own page with per-account transaction history
-- Reports page (charts — needs a charting library + aggregation queries)
-- Recurring feature (incl. future automatic transaction generation)
-- Categories: subcategory UI (parent field exists on the model, unused), icons/colors
-- CSV import/export
-- Profile page (settings, theme/notification prefs)
-- Signup page UI, intro page, first-login welcome popup, dark mode toggle
-- Real styling — everything is unstyled HTML currently
+## V1 scope and status
+V1 is considered complete after the following remaining items are implemented and the main flows are manually checked:
 
-## Agreed roadmap for what's left
-Budget history (month dropdown) → Accounts page → Recurring → Reports/charts → Categories polish (subcategories, icons/colors) → CSV import/export → Profile, signup/intro/onboarding, dark mode, styling pass
+- [ ] Add frontend sign-up mode/form using existing `POST /api/register/`, then sign in through the existing JWT token endpoint. Backend registration and per-user data ownership already exist.
+- [ ] Add transaction search (description, account, category, amount, date, type) and quick filters (for example: income, expenses, transfers, this month). Existing account/category/type/date filters already work.
+- [ ] Add dashboard budget alerts for active budgets at 80% usage and over budget. Example implementation was shared in chat but has not been added to the project.
+- [ ] Manually verify sign-up, login, ownership isolation across two users, transaction filtering/search, budget thresholds, recurring post/skip, and responsive layouts.
+
+Recurring due reminders are already shown in-app on the dashboard. Scheduled email/browser/push notifications while the app is closed are not implemented and are outside the current V1 scope.
+
+## Possible post-V1 work
+- CSV import/export.
+- Dashboard activity calendar and transaction count.
+- Per-account transaction history.
+- Category subcategory UI and icon/color customization.
+- Profile/settings and light/dark theme toggle.
+- Automated recurring transaction generation or external notifications.
+- Refresh-token renewal UX and broader deployment/security review.
+
+## Working preference
+Explain the implementation in small, understandable pieces and provide code in chat for the user to apply, unless the user explicitly asks for direct project edits.
