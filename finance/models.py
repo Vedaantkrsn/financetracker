@@ -11,6 +11,9 @@ class Account(models.Model):
         ('wallet', 'Digital Wallet'),
         ('credit_card', 'Credit Card'),
         ('investment', 'Investment'),
+        ('savings_account', 'Savings Account'),
+        ('loan', 'Loan'),
+        ('other', 'Other'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='accounts')
