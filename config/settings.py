@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 import dj_database_url
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -194,4 +195,9 @@ LOGGING = {
             "propagate": False,
         },
     },
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
 }
